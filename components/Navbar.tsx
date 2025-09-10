@@ -2,21 +2,26 @@
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
-import ThemeToggle from "@/components/ThemeToggle";
 import { useState } from "react";
-import Image from "next/image";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   const toggleMobileMenu = () => setIsMobileMenuOpen((o) => !o);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  // Menu items to show ONLY when signed in
+  const authedLinks = [
+    { href: "/", label: "Página Inicial", icon: "🏠" },
+    { href: "/patients", label: "Pacientes", icon: "🧑‍⚕️" },
+    { href: "/agenda", label: "Agenda", icon: "🗓️" },
+    { href: "/treasury", label: "Financeiro", icon: "💳" },
+  ];
 
   return (
     <nav className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-blue-900/10 dark:border-blue-200/10 shadow-lg shadow-gray-900/5 dark:shadow-black/30">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center justify-between sm:h-16">
-          {/* Logo Section */}
+          {/* Brand */}
           <div className="flex items-center">
             <Link
               href="/"
@@ -39,47 +44,31 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden items-center space-x-1 md:flex">
-            <Link
-              href="/"
-              className="group relative rounded-xl px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 lg:px-4"
-            >
-              <span className="relative z-10">Pagina Inicial</span>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500/10 to-blue-500/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            </Link>
+          {/* Desktop Navigation (only when signed in) */}
+          <SignedIn>
+            <div className="hidden items-center space-x-1 md:flex">
+              {authedLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="group relative rounded-xl px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 lg:px-4"
+                >
+                  <span className="relative z-10">{item.label}</span>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500/10 to-blue-500/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                </Link>
+              ))}
+            </div>
+          </SignedIn>
 
-            <Link
-              href="/about"
-              className="group relative rounded-xl px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 lg:px-4"
-            >
-              <span className="relative z-10">Sobre nós</span>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500/10 to-blue-500/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            </Link>
-
-            <Link
-              href="/contact"
-              className="group relative rounded-xl px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 lg:px-4"
-            >
-              <span className="relative z-10">Contato</span>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-500/10 to-blue-500/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            </Link>
-          </div>
-
-          {/* Right Section */}
+          {/* Right Section (auth controls) */}
           <div className="flex items-center space-x-1 sm:space-x-2">
-            {/* Theme Toggle */}
-            {/* <div className="p-0.5 sm:p-1">
-              <ThemeToggle />
-            </div> */}
-
-            {/* Authentication - Desktop */}
+            {/* Desktop auth */}
             <div className="hidden sm:block">
               <SignedOut>
                 <SignInButton>
                   <button className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-700 via-blue-600 to-blue-500 px-3 py-2 text-xs font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:from-indigo-700 hover:via-blue-600 hover:to-blue-600 hover:shadow-xl active:scale-95 sm:rounded-xl sm:px-4 sm:text-sm">
                     <div className="relative z-10 flex items-center gap-1 sm:gap-2">
-                      <span>Sign In</span>
+                      <span>Login</span>
                       <svg
                         className="h-3 w-3 sm:h-4 sm:w-4"
                         fill="none"
@@ -157,33 +146,22 @@ export default function Navbar() {
           }`}
         >
           <div className="mt-2 space-y-1 rounded-xl border border-blue-900/10 bg-white/80 px-2 pt-2 pb-3 shadow-lg backdrop-blur-sm dark:border-blue-200/10 dark:bg-gray-800/80">
-            {/* Mobile Navigation Links */}
-            <Link
-              href="/"
-              className="active:scale-95 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-              onClick={closeMobileMenu}
-            >
-              <span className="text-base">🏠</span>
-              <span>Pagina Inicial</span>
-            </Link>
-            <Link
-              href="/about"
-              className="active:scale-95 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-              onClick={closeMobileMenu}
-            >
-              <span className="text-base">ℹ️</span>
-              <span>Sobre nós</span>
-            </Link>
-            <Link
-              href="/contact"
-              className="active:scale-95 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-              onClick={closeMobileMenu}
-            >
-              <span className="text-base">📞</span>
-              <span>Contato</span>
-            </Link>
+            {/* Mobile: signed-in links */}
+            <SignedIn>
+              {authedLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="active:scale-95 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50/50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                  onClick={closeMobileMenu}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </SignedIn>
 
-            {/* Mobile Authentication */}
+            {/* Mobile: auth controls */}
             <div className="border-t border-gray-200/50 pt-3 dark:border-gray-600/50">
               <SignedOut>
                 <SignInButton>
@@ -191,7 +169,7 @@ export default function Navbar() {
                     className="active:scale-95 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-700 via-blue-600 to-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:brightness-105 hover:shadow-xl"
                     onClick={closeMobileMenu}
                   >
-                    <span>Sign In</span>
+                    <span>Login</span>
                     <svg
                       className="h-4 w-4"
                       fill="none"

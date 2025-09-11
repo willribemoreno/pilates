@@ -15,7 +15,7 @@ type Filters = {
   date?: string; // YYYY-MM-DD
   time?: string; // HH:mm
   treatment?: string;
-  vip?: "true" | "false" | "";
+  vip?: "true" | "false" | ""; // permanece para compatibilidade com filtros existentes
   professional?: string;
 };
 
@@ -24,12 +24,11 @@ type NewEvent = {
   time: string; // HH:mm
   patientName: string;
   age?: string;
-  treatment?: string;
+  treatment?: string; // <- dropdown agora
   notes?: string;
-  vip?: boolean;
-  professional?: string;
-  durationMinutes?: number;
-  recurrenceMonths?: number; // NEW: number of months to repeat monthly (same time)
+  professional?: string; // <- dropdown agora
+  durationMinutes?: number; // visível, desabilitado (50)
+  recurrenceMonths?: number; // recorrência mensal
 };
 
 // simple idempotency key generator
@@ -44,8 +43,6 @@ export default function AgendaPage() {
   const [view, setView] = useState<
     "dayGridMonth" | "timeGridWeek" | "timeGridDay"
   >("timeGridWeek");
-  const [visibleFrom, setVisibleFrom] = useState<string | null>(null);
-  const [visibleTo, setVisibleTo] = useState<string | null>(null);
 
   const [events, setEvents] = useState<any[]>([]);
   const [filters, setFilters] = useState<Filters>({ vip: "" });
@@ -60,12 +57,11 @@ export default function AgendaPage() {
     time: "",
     patientName: "",
     age: "",
-    treatment: "",
+    treatment: "", // dropdown
     notes: "",
-    vip: false,
-    professional: "",
-    durationMinutes: 60,
-    recurrenceMonths: 0, // default: no recurrence
+    professional: "", // dropdown
+    durationMinutes: 50, // fixo em 50
+    recurrenceMonths: 0, // sem recorrência por padrão
   });
 
   // seed a fresh idempotency key whenever modal opens
@@ -100,7 +96,6 @@ export default function AgendaPage() {
 
     api.changeView(next);
     setView(next);
-    // datesSet will fire and update visibleFrom/visibleTo
   };
 
   // keep the Day view aligned when the date filter changes
@@ -112,28 +107,21 @@ export default function AgendaPage() {
 
   // called whenever the visible range changes
   const handleDatesSet = (arg: DatesSetArg) => {
-    setVisibleFrom(arg.start.toISOString());
-    setVisibleTo(arg.end.toISOString());
+    // sempre que o range muda, recarrega
+    fetchEvents();
   };
 
-  // fetch events for the visible range + filters
+  // fetch events for the current visible range + filters
   const fetchEvents = useCallback(async () => {
-    // if range not set yet, try to derive from calendar API
-    let fromISO = visibleFrom;
-    let toISO = visibleTo;
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
 
-    if (!fromISO || !toISO) {
-      const api = calendarRef.current?.getApi();
-      if (api) {
-        fromISO = api.view.activeStart.toISOString();
-        toISO = api.view.activeEnd.toISOString();
-      }
-    }
-    if (!fromISO || !toISO) return;
+    const start = api.view.activeStart;
+    const end = api.view.activeEnd;
 
     const params = new URLSearchParams();
-    params.set("from", fromISO);
-    params.set("to", toISO);
+    params.set("from", start.toISOString());
+    params.set("to", end.toISOString());
 
     if (filters.patient) params.set("patient", filters.patient);
     if (filters.date) params.set("date", filters.date);
@@ -147,9 +135,9 @@ export default function AgendaPage() {
     });
     const json = await res.json();
     if (json.ok) setEvents(json.events);
-  }, [visibleFrom, visibleTo, filters]);
+  }, [filters]);
 
-  // refetch on range or filters changes
+  // refetch on filters changes
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
@@ -160,10 +148,13 @@ export default function AgendaPage() {
     if (saving) return; // guard against double-click
     setSaving(true);
     try {
+      // força duração 50, mesmo que por algum motivo o input mude
+      const payload = { ...form, durationMinutes: 50, idempotencyKey };
+
       const res = await fetch("/api/calendar/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, idempotencyKey }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error ?? "Erro ao criar evento");
@@ -176,13 +167,13 @@ export default function AgendaPage() {
         age: "",
         treatment: "",
         notes: "",
-        vip: false,
         professional: "",
-        durationMinutes: 60,
+        durationMinutes: 50,
         recurrenceMonths: 0,
       });
 
       // Refresh current view
+      calendarRef.current?.getApi()?.refetchEvents();
       await fetchEvents();
     } catch (err: any) {
       alert(err?.message ?? "Erro desconhecido");
@@ -191,12 +182,18 @@ export default function AgendaPage() {
     }
   };
 
+  // Clear filters
+  // const onClearFilters = () => {
+  //   setFilters({ vip: "" });
+  //   setClear(true);
+  //   setTimeout(() => setClear(
+
   // event render: detailed on "Day", concise on others
   const renderEventContent = (arg: EventContentArg) => {
     const vType = arg.view.type; // 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'
     const { timeText, event } = arg;
     const xp: any = event.extendedProps || {};
-    const isVip = xp.vip;
+    const isVip = xp.vip; // pode existir em eventos antigos, não é mais criado no form
 
     if (vType === "timeGridDay") {
       return (
@@ -212,9 +209,6 @@ export default function AgendaPage() {
           )}
           {xp.professional && (
             <div className="text-xs">Profissional: {xp.professional}</div>
-          )}
-          {typeof xp.vip !== "undefined" && (
-            <div className="text-xs">Aula VIP: {xp.vip ? "Sim" : "Não"}</div>
           )}
           {xp.notes && (
             <div className="mt-1 text-xs italic">Obs.: {xp.notes}</div>
@@ -298,14 +292,37 @@ export default function AgendaPage() {
           value={filters.date ?? ""}
           onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
         />
-        <input
+        <select
+          value={form.treatment}
+          onChange={(e) => setFilters((f) => ({ ...f, professional: e.target.value }))}
+          className="rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
+          disabled={saving}
+        >
+          <option value="" disabled hidden>Profissional</option>
+          <option value="Pilates">Pilates</option>
+          <option value="Fisioterapia">Fisioterapia</option>
+        </select>
+
+        {/* <input
           placeholder="Profissional"
           className="rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
           value={filters.professional ?? ""}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, professional: e.target.value }))
+          onChange={(e) => setFilters((f) => ({ ...f, professional: e.target.value }))}
+        /> */}
+        <button
+          onClick={(e) =>
+            setFilters((f) => ({
+              ...f,
+              patient: "",
+              date: "",
+              professional: "",
+            }))
           }
-        />
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-700 via-blue-600 to-blue-500 px-4 py-2 font-semibold text-white shadow-md transition-all hover:brightness-105 hover:shadow-lg active:scale-95"
+        >
+          <span className="text-base"></span>
+          <span>Limpar Filtros</span>
+        </button>
       </div>
 
       {/* Calendar */}
@@ -319,8 +336,8 @@ export default function AgendaPage() {
           events={events}
           nowIndicator
           allDaySlot={false}
-          slotMinTime="07:00:00"
-          slotMaxTime="21:00:00"
+          slotMinTime="06:00:00"
+          slotMaxTime="22:00:00"
           firstDay={1}
           eventDisplay="block"
           eventTimeFormat={{
@@ -418,17 +435,21 @@ export default function AgendaPage() {
                 />
               </label>
 
+              {/* Tratamento: dropdown */}
               <label className="text-sm text-gray-700 dark:text-gray-300">
                 Tratamento
-                <input
+                <select
                   value={form.treatment}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, treatment: e.target.value }))
                   }
-                  placeholder="Ex.: Studio Pilates"
                   className="mt-1 w-full rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-gray-800 disabled:opacity-60 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
                   disabled={saving}
-                />
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Pilates">Pilates</option>
+                  <option value="Fisioterapia">Fisioterapia</option>
+                </select>
               </label>
 
               <label className="text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
@@ -445,51 +466,38 @@ export default function AgendaPage() {
                 />
               </label>
 
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={form.vip}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, vip: e.target.checked }))
-                  }
-                  className="h-4 w-4 accent-blue-600"
-                  disabled={saving}
-                />
-                Aula VIP
-              </label>
-
+              {/* Nome do profissional: dropdown */}
               <label className="text-sm text-gray-700 dark:text-gray-300">
                 Nome do profissional
-                <input
+                <select
                   value={form.professional}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, professional: e.target.value }))
                   }
-                  placeholder="Ex.: Paula Moreno"
                   className="mt-1 w-full rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-gray-800 disabled:opacity-60 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
                   disabled={saving}
-                />
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Paula">Paula</option>
+                  <option value="Ester">Ester</option>
+                  <option value="Beatriz">Beatriz</option>
+                </select>
               </label>
 
+              {/* Duração: visível e desabilitado (50) */}
               <label className="text-sm text-gray-700 dark:text-gray-300">
                 Duração (min)
                 <input
                   type="number"
-                  min={15}
-                  step={15}
-                  value={form.durationMinutes}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      durationMinutes: Number(e.target.value),
-                    }))
-                  }
-                  className="mt-1 w-full rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-gray-800 disabled:opacity-60 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
-                  disabled={saving}
+                  min={50}
+                  step={10}
+                  value={50}
+                  disabled
+                  className="mt-1 w-full rounded-xl border border-blue-900/20 bg-gray-100 px-3 py-2 text-gray-500 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-400"
                 />
               </label>
 
-              {/* NEW: Recurrence in months */}
+              {/* Recorrência em meses */}
               <label className="text-sm text-gray-700 dark:text-gray-300">
                 Recorrência (meses)
                 <input

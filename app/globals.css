@@ -27,15 +27,6 @@
   --nav-h: 64px;
 }
 
-/* Dark theme overrides */
-html.dark {
-  --background: #0a0a0a; /* dark background */
-  --foreground: #e5e7eb; /* light gray text */
-
-  --card: #111827; /* gray-900 for cards in dark mode */
-  --ink-700: #9ca3af; /* gray-400 as secondary text */
-  --ink-500: #6b7280; /* keep muted tone but softer on dark */
-}
 
 /* Prevents navbar to overlap sections */
 @media (max-width: 640px) {

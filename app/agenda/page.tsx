@@ -325,7 +325,8 @@ export default function AgendaPage() {
     "rounded-xl border border-blue-900/10 bg-white p-1 shadow-sm dark:border-blue-200/10 dark:bg-gray-900";
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    // <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="container max-w-screen p-8">
       {/* Top bar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <button

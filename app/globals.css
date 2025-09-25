@@ -45,3 +45,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+.fc-direction-ltr .fc-timegrid-col-events {
+  margin: 0;
+}

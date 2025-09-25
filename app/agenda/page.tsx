@@ -443,6 +443,7 @@ export default function AgendaPage() {
           eventDisplay="block"
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
           locale={ptBr}
+          eventOverlap={false}
           eventClassNames={() =>
             "cursor-pointer rounded-md border border-blue-900/10 bg-blue-500/90 text-white dark:border-blue-200/10 w-full"
           }

@@ -275,9 +275,10 @@ export default function AgendaPage() {
     const { timeText, event } = arg;
     const xp: any = event.extendedProps || {};
 
+    /** Day view */
     if (vType === "timeGridDay") {
       return (
-        <div className="flex gap-0 p-1 divide-x">
+        <div className="flex divide-x">
           <div className="flex flex-col flex-1 p-0 leading-tight text-left justify-end min-w-0">
             <div className="truncate font-semibold">
               {xp.patientName || event.title}
@@ -427,7 +428,7 @@ export default function AgendaPage() {
       </div>
 
       {/* Calendar */}
-      <div className="overflow-hidden rounded-2xl border border-blue-900/10 bg-white shadow-[0_10px_30px_rgba(17,24,39,.12)] dark:border-blue-200/10 dark:bg-gray-900">
+      <div className="no-event-gutters overflow-hidden rounded-2xl border border-blue-900/10 bg-white shadow-[0_10px_30px_rgba(17,24,39,.12)] dark:border-blue-200/10 dark:bg-gray-900">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -441,6 +442,9 @@ export default function AgendaPage() {
           slotMaxTime="22:00:00"
           firstDay={1}
           eventDisplay="block"
+          dayMaxEventRows={3}
+          slotEventOverlap={false}
+          selectable
           eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
           locale={ptBr}
           eventOverlap={false}

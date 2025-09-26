@@ -39,6 +39,12 @@ type NewEvent = {
 type Presence = "ATENDIDO" | "DESMARCADO" | "FALTOU" | "NAO_PREENCHIDO";
 type Mode = "create" | "edit";
 
+const professionals = [
+    { name: "Paula"},
+    { name: "Beatriz"},
+    { name: "Esther"},
+  ];
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -601,10 +607,9 @@ export default function AgendaPage() {
                   className="mt-1 w-full rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-gray-800 disabled:opacity-60 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
                   disabled={saving}
                 >
-                  <option value="">Selecione...</option>
-                  <option value="Paula">Paula</option>
-                  <option value="Ester">Ester</option>
-                  <option value="Beatriz">Beatriz</option>
+                  {professionals.map((name) => (
+                    <option key={name.name} value={name.name}>{name.name}</option>
+                  ))}
                 </select>
               </label>
 

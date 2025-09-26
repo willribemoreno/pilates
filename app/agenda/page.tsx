@@ -11,7 +11,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 
 type Filters = {
   patient?: string;
@@ -33,6 +33,7 @@ type NewEvent = {
   professional?: string;
   durationMinutes?: number; // default 50
   recurrenceMonths?: number;
+  presence: string;
 };
 
 type Presence = "ATENDIDO" | "DESMARCADO" | "FALTOU" | "NAO_PREENCHIDO";
@@ -51,12 +52,21 @@ function makeKey() {
 /** Calculates the duration from a range string like "16:00 - 17:00". */
 function getDurationInMinutes(range: string): number {
   const [start, end] = range.split("-").map((s) => s.trim());
+  if (!start || !end) return 0;
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
   const sTot = sh * 60 + sm;
   let eTot = eh * 60 + em;
   if (eTot < sTot) eTot += 24 * 60;
   return eTot - sTot;
+}
+
+function presencePtToEnum(p?: string): Presence {
+  const v = (p || "").toLowerCase();
+  if (v.includes("realizado") || v === "atendido") return "ATENDIDO";
+  if (v.includes("desmarc")) return "DESMARCADO";
+  if (v.includes("faltou")) return "FALTOU";
+  return "NAO_PREENCHIDO";
 }
 
 export default function AgendaPage() {
@@ -92,6 +102,7 @@ export default function AgendaPage() {
     professional: "",
     durationMinutes: 50,
     recurrenceMonths: 0,
+    presence: "Não preenchido",
   });
 
   // seed a fresh idempotency key whenever modal opens
@@ -118,9 +129,10 @@ export default function AgendaPage() {
         Math.round((end.getTime() - start.getTime()) / 60000)
       ),
       recurrenceMonths: 0,
+      presence: xp.presence || "Não preenchido",
     });
 
-    setPresence((xp.presence as Presence) ?? "NAO_PREENCHIDO");
+    setPresence(presencePtToEnum(xp.presence));
     setMode("edit");
     setEditingId(evt.id);
     setOpen(true);
@@ -153,9 +165,13 @@ export default function AgendaPage() {
     if (view === "timeGridDay") gotoFilterDateOrToday();
   }, [filters.date, view]);
 
-  const handleDatesSet = (_: DatesSetArg) => {
-    fetchEvents();
-  };
+  // DEFER fetch to a microtask to avoid flushSync during FC render
+  const handleDatesSet = useCallback((_: DatesSetArg) => {
+    queueMicrotask(() => {
+      if (!calendarRef.current) return; // guard if unmounted
+      fetchEvents();
+    });
+  }, [/* no direct deps; uses ref */]);
 
   const fetchEvents = useCallback(async () => {
     const api = calendarRef.current?.getApi();
@@ -178,9 +194,13 @@ export default function AgendaPage() {
       cache: "no-store",
     });
     const json = await res.json();
-    if (json.ok) setEvents(json.events);
+    if (json.ok) {
+      // transition avoids urgent synchronous flush
+      startTransition(() => setEvents(json.events));
+    }
   }, [filters]);
 
+  // Refetch when filters change (runs after paint; safe)
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
@@ -222,7 +242,7 @@ export default function AgendaPage() {
       if (mode === "edit" && editingId) {
         const payload = { id: editingId, ...form, presence };
         const res = await fetch("/api/calendar/events", {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
@@ -258,10 +278,12 @@ export default function AgendaPage() {
         professional: "",
         durationMinutes: 50,
         recurrenceMonths: 0,
+        presence: "Não preenchido",
       });
 
-      calendarRef.current?.getApi()?.refetchEvents();
-      await fetchEvents();
+      // Avoid calling both refetchEvents() and fetchEvents().
+      // Defer to next tick to avoid interfering with current render.
+      queueMicrotask(() => fetchEvents());
     } catch (err: any) {
       alert(err?.message ?? "Erro desconhecido");
     } finally {
@@ -326,7 +348,6 @@ export default function AgendaPage() {
     "rounded-xl border border-blue-900/10 bg-white p-1 shadow-sm dark:border-blue-200/10 dark:bg-gray-900";
 
   return (
-    // <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <main className="container max-w-screen p-8">
       {/* Top bar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -345,6 +366,7 @@ export default function AgendaPage() {
               professional: "",
               durationMinutes: 50,
               recurrenceMonths: 0,
+              presence: "Não preenchido",
             });
             setOpen(true);
           }}
@@ -398,16 +420,17 @@ export default function AgendaPage() {
           onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
         />
         <select
-          value={form.treatment}
+          value={filters.treatment ?? "Todos os tratamentos"}
           onChange={(e) =>
-            setFilters((f) => ({ ...f, professional: e.target.value }))
+            setFilters((f) => ({ ...f, treatment: e.target.value }))
           }
           className="rounded-xl border border-blue-900/20 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600/50 dark:bg-gray-800 dark:text-gray-100"
           disabled={saving}
         >
           <option value="" disabled hidden>
-            Profissional
+            Tipo de Tratamento
           </option>
+          <option value="">Todos os tratamentos</option>
           <option value="Pilates">Pilates</option>
           <option value="Fisioterapia">Fisioterapia</option>
         </select>
@@ -628,58 +651,56 @@ export default function AgendaPage() {
                 />
               </label>
 
-              {/* Status do atendimento (só no modo Editar) */}
-              {mode === "edit" && (
-                <fieldset className="md:col-span-2 rounded-xl border border-blue-900/20 p-3">
-                  <legend className="px-1 text-sm font-medium text-gray-800 dark:text-gray-100">
-                    Status do atendimento
-                  </legend>
-                  <div className="mt-2 grid gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="not-filled"
-                        className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={presence === "NAO_PREENCHIDO"}
-                        onChange={() => setPresence("NAO_PREENCHIDO")}
-                      />
-                      <span>Não preenchido</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="presence"
-                        className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={presence === "ATENDIDO"}
-                        onChange={() => setPresence("ATENDIDO")}
-                      />
-                      <span>Atendimento realizado</span>
-                    </label>
+              {/* Status do atendimento */}
+              <fieldset className="md:col-span-2 rounded-xl border border-blue-900/20 p-3">
+                <legend className="px-1 text-sm font-medium text-gray-800 dark:text-gray-100">
+                  Status do atendimento
+                </legend>
+                <div className="mt-2 grid gap-2 text-sm text-gray-800 dark:text-gray-100">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="not-filled"
+                      className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={presence === "NAO_PREENCHIDO"}
+                      onChange={() => setPresence("NAO_PREENCHIDO")}
+                    />
+                    <span>Não preenchido</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="presence"
+                      className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={presence === "ATENDIDO"}
+                      onChange={() => setPresence("ATENDIDO")}
+                    />
+                    <span>Atendimento realizado</span>
+                  </label>
 
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="presence"
-                        className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={presence === "DESMARCADO"}
-                        onChange={() => setPresence("DESMARCADO")}
-                      />
-                      <span>Desmarcou</span>
-                    </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="presence"
+                      className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={presence === "DESMARCADO"}
+                      onChange={() => setPresence("DESMARCADO")}
+                    />
+                    <span>Desmarcou</span>
+                  </label>
 
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="presence"
-                        className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={presence === "FALTOU"}
-                        onChange={() => setPresence("FALTOU")}
-                      />
-                      <span>Faltou</span>
-                    </label>
-                  </div>
-                </fieldset>
-              )}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="presence"
+                      className="size-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={presence === "FALTOU"}
+                      onChange={() => setPresence("FALTOU")}
+                    />
+                    <span>Faltou</span>
+                  </label>
+                </div>
+              </fieldset>
 
               <div className="mt-2 flex justify-end gap-2 md:col-span-2">
                 <button

@@ -1,10 +1,9 @@
+// app/layout.tsx
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Providers from "../lib/providers"; // next-themes provider
-import { ClerkProvider } from "@clerk/nextjs"; // <-- use directly
-import { ptBR } from "@clerk/localizations";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -27,11 +26,9 @@ export default function RootLayout({
                     transition-colors duration-300 min-h-screen w-full`}
       >
         <Providers>
-          <ClerkProvider localization={ptBR}>
-            <Navbar />
-            {children}
-            <Footer />
-          </ClerkProvider>
+          <Navbar />
+          {children}
+          <Footer />
         </Providers>
       </body>
     </html>

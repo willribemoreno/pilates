@@ -435,8 +435,8 @@ function getHexColor(tailwindColor: string) {
       return "#ef4444e6";
     case "bg-green-600/90":
       return "#16a34ae6";
-    case "bg-fuchsia-700/90":
-      return "#a21cafe6";
+    case "bg-orange-500/90":
+      return "#f97316e6";
     case "bg-yellow-500/90":
       return "#eab308e6";
   }
